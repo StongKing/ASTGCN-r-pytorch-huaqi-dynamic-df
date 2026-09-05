@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="ProjectModuleManager">
+    <modules>
+      <module fileurl="file://$PROJECT_DIR$/../../AGCRN-master/.idea/AGCRN-master.iml" filepath="$PROJECT_DIR$/../../AGCRN-master/.idea/AGCRN-master.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/ASTGCN-r-pytorch-master.iml" filepath="$PROJECT_DIR$/.idea/ASTGCN-r-pytorch-master.iml" />
+      <module fileurl="file://$PROJECT_DIR$/../../BasicTS-master/.idea/BasicTS-master.iml" filepath="$PROJECT_DIR$/../../BasicTS-master/.idea/BasicTS-master.iml" />
+      <module fileurl="file://$PROJECT_DIR$/../../DGCRN-TSA-main/.idea/DGCRN-TSA-main.iml" filepath="$PROJECT_DIR$/../../DGCRN-TSA-main/.idea/DGCRN-TSA-main.iml" />
+      <module fileurl="file://$PROJECT_DIR$/../../STJGCN-main/.idea/STJGCN-main.iml" filepath="$PROJECT_DIR$/../../STJGCN-main/.idea/STJGCN-main.iml" />
+      <module fileurl="file://$PROJECT_DIR$/../../Traffic-Benchmark-master/.idea/Traffic-Benchmark-master.iml" filepath="$PROJECT_DIR$/../../Traffic-Benchmark-master/.idea/Traffic-Benchmark-master.iml" />
+    </modules>
+  </component>
+</project>
