@@ -281,23 +281,40 @@ def train_main():
         # 将模型设置为训练模式，以确保dropout等随机层在训练时按预期工作
         net.train()  # ensure dropout layers are in train mode
 
-        # 开始遍历训练数据加载器 train_loader 中的每个批次
         for batch_index, batch_data in enumerate(train_loader):
-            # 从 train_loader 中获取当前批次的数据和标签
-            encoder_inputs, labels = batch_data
-            end_index = min(batch_index*32 + 32, len(train_A_t))
-            train_At = torch.from_numpy(train_A_t[batch_index*32:end_index]).type(torch.FloatTensor)  # shape: (N, N)
-            # 在每次反向传播前，清除（归零）当前的梯度信息
+
+            encoder_inputs, labels, graph_idx = batch_data
+
+            graph_idx_np = graph_idx.cpu().numpy()
+
+            train_At = torch.from_numpy(
+                train_A_t[graph_idx_np]
+            ).type(torch.FloatTensor).to(DEVICE)
+
             optimizer.zero_grad()
-            # 执行模型的前向传播，计算输出
-            outputs = net(encoder_inputs,train_At)
+
+            outputs = net(
+                encoder_inputs,
+                train_At
+            )
+
+        # # 开始遍历训练数据加载器 train_loader 中的每个批次
+        # for batch_index, batch_data in enumerate(train_loader):
+        #     # 从 train_loader 中获取当前批次的数据和标签
+        #     encoder_inputs, labels = batch_data
+        #     end_index = min(batch_index*32 + 32, len(train_A_t))
+        #     train_At = torch.from_numpy(train_A_t[batch_index*32:end_index]).type(torch.FloatTensor)  # shape: (N, N)
+        #     # 在每次反向传播前，清除（归零）当前的梯度信息
+        #     optimizer.zero_grad()
+        #     # 执行模型的前向传播，计算输出
+        #     outputs = net(encoder_inputs,train_At)
             # 根据是否设置了 masked_flag，计算当前批次的损失
             if masked_flag:
                 loss = criterion_masked(outputs, labels, missing_value)
             else:
-                loss = criterion(outputs, labels) + 0.005 * torch.mean(torch.abs(
-                    torch.sum(labels, dim=1) - torch.sum(outputs,
-                                                         dim=1))) + 0.005* torch.mean(torch.abs(torch.sum(labels, dim=1) - torch.sum(outputs, dim=1)))+0.01*(torch.abs(outputs - torch.round(outputs))).mean()
+
+                loss = (criterion(outputs, labels) + 0.01 * torch.mean(torch.abs(torch.sum(labels, dim=1) - torch.sum(outputs,dim=1)))
+                        +0.01 *(torch.abs(outputs - torch.round(outputs))).mean())
                 # loss = criterion(outputs, labels)
                 # loss = criterion(outputs, labels) +  ((start_epoch+1)/epochs)*0.05*torch.mean(torch.abs(torch.sum(labels, dim=1) - torch.sum(outputs, dim=1)))/68
                 # loss = criterion(outputs, labels) + ((start_epoch+1)/epochs)*0.05 * torch.mean(torch.abs(torch.sum(labels, dim=1) - torch.sum(outputs, dim=1)))
@@ -381,4 +398,4 @@ def predict_main(global_step, data_loader, data_A_t, data_target_tensor, metric_
 if __name__ == "__main__":
     train_main()
 
-    # predict_main(70, test_loader, test_A_t, test_target_tensor,metric_method, _mean, _std, 'test')
+    # predict_main(50, test_loader, test_A_t, test_target_tensor,metric_method, _mean, _std, 'test')
