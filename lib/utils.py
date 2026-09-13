@@ -242,25 +242,76 @@ def load_graphdata_channel1(graph_signal_matrix_filename, num_of_hours, num_of_d
     train_x_tensor = torch.from_numpy(train_x).type(torch.FloatTensor).to(DEVICE)  # (B, N, F, T)
     train_target_tensor = torch.from_numpy(train_target).type(torch.FloatTensor).to(DEVICE)  # (B, N, T)
 
-    train_dataset = torch.utils.data.TensorDataset(train_x_tensor, train_target_tensor)
+    # train_dataset = torch.utils.data.TensorDataset(train_x_tensor, train_target_tensor)
+    #
+    # train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=batch_size, shuffle=shuffle)
 
-    train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=batch_size, shuffle=shuffle)
+    # 每个训练样本对应的动态图编号
+    train_graph_idx_tensor = torch.arange(
+        train_x.shape[0],
+        dtype=torch.long
+    )
+
+    train_dataset = torch.utils.data.TensorDataset(
+        train_x_tensor,
+        train_target_tensor,
+        train_graph_idx_tensor
+    )
+
+    train_loader = torch.utils.data.DataLoader(
+        train_dataset,
+        batch_size=batch_size,
+        shuffle=shuffle
+    )
 
     # ------- val_loader -------
     val_x_tensor = torch.from_numpy(val_x).type(torch.FloatTensor).to(DEVICE)  # (B, N, F, T)
     val_target_tensor = torch.from_numpy(val_target).type(torch.FloatTensor).to(DEVICE)  # (B, N, T)
 
-    val_dataset = torch.utils.data.TensorDataset(val_x_tensor, val_target_tensor)
+    # val_dataset = torch.utils.data.TensorDataset(val_x_tensor, val_target_tensor)
+    #
+    # val_loader = torch.utils.data.DataLoader(val_dataset, batch_size=batch_size, shuffle=False)
 
-    val_loader = torch.utils.data.DataLoader(val_dataset, batch_size=batch_size, shuffle=False)
+    val_graph_idx_tensor = torch.arange(
+        val_x.shape[0],
+        dtype=torch.long
+    )
+
+    val_dataset = torch.utils.data.TensorDataset(
+        val_x_tensor,
+        val_target_tensor,
+        val_graph_idx_tensor
+    )
+
+    val_loader = torch.utils.data.DataLoader(
+        val_dataset,
+        batch_size=batch_size,
+        shuffle=False
+    )
 
     # ------- test_loader -------
     test_x_tensor = torch.from_numpy(test_x).type(torch.FloatTensor).to(DEVICE)  # (B, N, F, T)
     test_target_tensor = torch.from_numpy(test_target).type(torch.FloatTensor).to(DEVICE)  # (B, N, T)
 
-    test_dataset = torch.utils.data.TensorDataset(test_x_tensor, test_target_tensor)
+    # test_dataset = torch.utils.data.TensorDataset(test_x_tensor, test_target_tensor)
+    # test_loader = torch.utils.data.DataLoader(test_dataset, batch_size=batch_size, shuffle=False)
 
-    test_loader = torch.utils.data.DataLoader(test_dataset, batch_size=batch_size, shuffle=False)
+    test_graph_idx_tensor = torch.arange(
+        test_x.shape[0],
+        dtype=torch.long
+    )
+
+    test_dataset = torch.utils.data.TensorDataset(
+        test_x_tensor,
+        test_target_tensor,
+        test_graph_idx_tensor
+    )
+
+    test_loader = torch.utils.data.DataLoader(
+        test_dataset,
+        batch_size=batch_size,
+        shuffle=False
+    )
 
     # print
     print('train:', train_x_tensor.size(), train_target_tensor.size())
@@ -284,10 +335,6 @@ def compute_val_loss_mstgcn(net, val_loader, val_A_t, criterion, masked_flag, mi
     :return: val_loss
     epoch：当前的迭代周期（epoch）。
     """
-
-
-
-
     net.train(False)  # ensure dropout layers are in evaluation mode
 
     with torch.no_grad():
@@ -295,14 +342,18 @@ def compute_val_loss_mstgcn(net, val_loader, val_A_t, criterion, masked_flag, mi
         val_loader_length = len(val_loader)  # nb of batch
 
         tmp = []  # 记录了所有batch的loss
-
         for batch_index, batch_data in enumerate(val_loader):
-            encoder_inputs, labels = batch_data
-            # 计算结束索引，确保不超过val_A_t的长度
-            end_index = min(batch_index*32 + 32, len(val_A_t))
-            val_At = torch.from_numpy(val_A_t[batch_index*32:end_index]).type(torch.FloatTensor)  # shape: (B, N, N)
-            # print(val_At.shape)
+            encoder_inputs, labels, graph_idx = batch_data
+            graph_idx_np = graph_idx.cpu().numpy()
+            val_At = torch.from_numpy(val_A_t[graph_idx_np]).type(torch.FloatTensor).to(encoder_inputs.device)
             outputs = net(encoder_inputs, val_At)
+        # for batch_index, batch_data in enumerate(val_loader):
+        #     encoder_inputs, labels = batch_data
+        #     # 计算结束索引，确保不超过val_A_t的长度
+        #     end_index = min(batch_index*32 + 32, len(val_A_t))
+        #     val_At = torch.from_numpy(val_A_t[batch_index*32:end_index]).type(torch.FloatTensor)  # shape: (B, N, N)
+        #     # print(val_At.shape)
+        #     outputs = net(encoder_inputs, val_At)
             if masked_flag:
                 loss = criterion(outputs, labels, missing_value)
             else:
@@ -341,17 +392,23 @@ def evaluate_on_test_mstgcn(net, test_loader, test_A_t, test_target_tensor, sw, 
         test_target_tensor = test_target_tensor.cpu().numpy()
 
         prediction = []  # 存储所有batch的output
-
         for batch_index, batch_data in enumerate(test_loader):
-            # 提取当前时间步的邻接矩阵
-            # 计算结束索引，确保不超过test_A_t的长度
-            end_index = min(batch_index*32 + 32, len(test_A_t))
-            test_At = torch.from_numpy(test_A_t[batch_index*32:end_index]).type(torch.FloatTensor)  # shape: (B, N, N)
-            encoder_inputs, labels = batch_data
-
-            outputs = net(encoder_inputs, test_At, apply_rounding=True)
-
+            encoder_inputs, labels, graph_idx = batch_data
+            graph_idx_np = graph_idx.cpu().numpy()
+            test_At = torch.from_numpy(test_A_t[graph_idx_np]).type(torch.FloatTensor).to(encoder_inputs.device)
+            outputs = net(encoder_inputs,test_At,apply_rounding=True)
             prediction.append(outputs.detach().cpu().numpy())
+
+        # for batch_index, batch_data in enumerate(test_loader):
+        #     # 提取当前时间步的邻接矩阵
+        #     # 计算结束索引，确保不超过test_A_t的长度
+        #     end_index = min(batch_index*32 + 32, len(test_A_t))
+        #     test_At = torch.from_numpy(test_A_t[batch_index*32:end_index]).type(torch.FloatTensor)  # shape: (B, N, N)
+        #     encoder_inputs, labels = batch_data
+        #
+        #     outputs = net(encoder_inputs, test_At, apply_rounding=True)
+
+        #     prediction.append(outputs.detach().cpu().numpy())
 
             if batch_index % 100 == 0:
                 print('predicting testing set batch %s / %s' % (batch_index + 1, test_loader_length))
@@ -399,17 +456,24 @@ def predict_and_save_results_mstgcn(net, data_loader, data_A_t, data_target_tens
 
         input = []  # 存储所有batch的input
 
+        # for batch_index, batch_data in enumerate(data_loader):
+        #
+        #     encoder_inputs, labels = batch_data
+        #
+        #     end_index = min(batch_index*32 + 32, len(data_A_t))
+        #     data_At = torch.from_numpy(data_A_t[batch_index*32:end_index]).type(torch.FloatTensor)  # shape: (N, N)
+        #
+        #     input.append(encoder_inputs[:, :, 0:1].cpu().numpy())  # (batch, T', 1)
+        #
+        #     outputs = net(encoder_inputs,  data_At, apply_rounding=True)
+        #
+        #     prediction.append(outputs.detach().cpu().numpy())
         for batch_index, batch_data in enumerate(data_loader):
-
-            encoder_inputs, labels = batch_data
-
-            end_index = min(batch_index*32 + 32, len(data_A_t))
-            data_At = torch.from_numpy(data_A_t[batch_index*32:end_index]).type(torch.FloatTensor)  # shape: (N, N)
-
-            input.append(encoder_inputs[:, :, 0:1].cpu().numpy())  # (batch, T', 1)
-
-            outputs = net(encoder_inputs,  data_At, apply_rounding=True)
-
+            encoder_inputs, labels, graph_idx = batch_data
+            graph_idx_np = graph_idx.cpu().numpy()
+            data_At = torch.from_numpy(data_A_t[graph_idx_np]).type(torch.FloatTensor).to(encoder_inputs.device)
+            input.append(encoder_inputs[:, :, 0:1].cpu().numpy())
+            outputs = net(encoder_inputs,data_At,apply_rounding=True)
             prediction.append(outputs.detach().cpu().numpy())
 
             if batch_index % 100 == 0:
